@@ -2,3 +2,5 @@ numpy
 tensorflow
 keras
 art
+pandas
+scikit-learn
