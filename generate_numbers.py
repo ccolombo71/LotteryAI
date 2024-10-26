@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import streamlit as st
 from sklearn.ensemble import RandomForestClassifier
 
 # Load the data
@@ -62,4 +63,5 @@ for i in range(5):
 
 next_draw_s = np.argmax(probabilities_s[1:]) + 1  # Add 1 to index to account for 1-based numbering
 
-print("Predicted next draw numbers:", next_draw_probabilities, "Special number:", next_draw_s)
+#print("Predicted next draw numbers:", next_draw_probabilities, "Special number:", next_draw_s)
+st.write("Predicted next draw numbers:", next_draw_probabilities, "Special number:", next_draw_s)
