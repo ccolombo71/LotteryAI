@@ -112,8 +112,18 @@ def main():
     lstm_train_data, lstm_val_data, lstm_max_value = load_lstm_data()
     
     # Random Forest Prediction
-    rf_predictions, rf_special = random_forest_prediction(rf_data)
+    #rf_predictions, rf_special = random_forest_prediction(rf_data)
     # print("Random Forest Predicted Numbers:", rf_predictions, "Special number:", rf_special)
+    #st.write("Random Forest Predicted Numbers:", rf_predictions, "Special number:", rf_special)
+ 
+    # Random Forest Prediction
+    rf_predictions, rf_special = random_forest_prediction(rf_data)
+
+    # Converti le previsioni in una lista di numeri interi
+    rf_predictions = [int(num) for num in rf_predictions]
+    rf_special = int(rf_special) if rf_special is not None else None
+
+    # Stampa i risultati in un formato più leggibile
     st.write("Random Forest Predicted Numbers:", rf_predictions, "Special number:", rf_special)
     
     # LSTM Prediction
