@@ -2,66 +2,125 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 from sklearn.ensemble import RandomForestClassifier
+import tensorflow as tf
+from tensorflow import keras
+from keras import layers
+from art import text2art
 
-# Load the data
-#filename = 'powerball.csv'
-filename = 'se.csv'
-data = pd.read_csv(filename)
+# Function to print the introduction of the program
+def print_intro():
+    ascii_art = text2art("LotteryAi")
+    print("============================================================")
+    print("LotteryAi")
+    print("Created by: Corvus Codex")
+    print("Github: https://github.com/CorvusCodex/")
+    print("Licence : MIT License")
+    print("Support my work:")
+    print("BTC: bc1q7wth254atug2p4v9j3krk9kauc0ehys2u8tgg3")
+    print("ETH & BNB: 0x68B6D33Ad1A3e0aFaDA60d6ADf8594601BE492F0")
+    print("Buy me a coffee: https://www.buymeacoffee.com/CorvusCodex")
+    print("============================================================")
+    print(ascii_art)
+    print("Lottery prediction artificial intelligence")
 
-# Assume 'Num1', 'Num2', 'Num3', 'Num4', 'Num5', 'NumS' are columns in the CSV file.
-columns = ['Num1', 'Num2', 'Num3', 'Num4', 'Num5', 'NumS']
+# Load data for Random Forest prediction
+def load_rf_data(filename='se.csv'):
+    data = pd.read_csv(filename)
+    columns = ['Num1', 'Num2', 'Num3', 'Num4', 'Num5', 'NumS']
+    return data[columns]
 
-# MegaMillions
-max_white = 70
-max_red = 25
-# Powerball
-#max_white = 69
-#max_red = 26
+# Load data for LSTM model
+def load_lstm_data(filename='data.txt'):
+    data = np.genfromtxt(filename, delimiter=',', dtype=int)
+    data[data == -1] = 0
+    train_data = data[:int(0.8 * len(data))]
+    val_data = data[int(0.8 * len(data)):]
+    max_value = np.max(data)
+    return train_data, val_data, max_value
 
-# Initialize weights for numbers 1-69/70 for Num1-Num5 and 1-26/25 for NumS
-weights = np.ones(max_white+1)  # Initialize all weights to 1
-weights_s = np.ones(max_red+1)
+# Random Forest prediction function
+def random_forest_prediction(data):
+    columns = ['Num1', 'Num2', 'Num3', 'Num4', 'Num5', 'NumS']
+    X = data[columns].iloc[:-1]
+    y = data[columns].iloc[1:]
+    classifiers = {}
+    predictions = []
+    selected_numbers = set()
+    
+    for col in columns[:-1]:
+        clf = RandomForestClassifier(max_depth=2, n_estimators=300)
+        clf.fit(X[[col]], y[col])
+        prob = clf.predict_proba(X[[col]].iloc[-1:])[0]
+        sorted_indices = np.argsort(-prob)
+        
+        chosen = False
+        for idx in sorted_indices:
+            num = idx + 1
+            if prob[idx] >= 0.6 and num not in selected_numbers:
+                predictions.append(num)
+                selected_numbers.add(num)
+                chosen = True
+                break
+        if not chosen:
+            for idx in sorted_indices:
+                num = idx + 1
+                if num not in selected_numbers:
+                    predictions.append(num)
+                    selected_numbers.add(num)
+                    break
+    
+    clf_s = RandomForestClassifier(max_depth=2, n_estimators=300)
+    clf_s.fit(X[['NumS']], y['NumS'])
+    prob_s = clf_s.predict_proba(X[['NumS']].iloc[-1:])[0]
+    sorted_indices_s = np.argsort(-prob_s)
+    next_draw_s_prob = None
+    for idx in sorted_indices_s:
+        special_num = idx + 1
+        if prob_s[idx] >= 0.6 and special_num not in selected_numbers:
+            next_draw_s_prob = special_num
+            break
+    if next_draw_s_prob is None:
+        for idx in sorted_indices_s:
+            special_num = idx + 1
+            if special_num not in selected_numbers:
+                next_draw_s_prob = special_num
+                break
 
-def update_weights(row):
-    for col in columns[:-1]:  # Update weights for Num1-Num5
-        num = row[col]
-        if 1 <= num <= max_white:  # Check if the number is within the expected range
-            weights[num] += 1
-    num_s = row['NumS']
-    if 1 <= num_s <= max_red:  # Update weight for NumS
-        weights_s[num_s] += 1
+    return predictions, next_draw_s_prob
 
-# Number of rows in data
-set_rows = 200
+# LSTM prediction function
+def lstm_prediction(train_data, val_data, max_value):
+    num_features = train_data.shape[1]
+    model = keras.Sequential([
+        layers.Embedding(input_dim=max_value + 1, output_dim=64),
+        layers.LSTM(256),
+        layers.Dense(num_features, activation='softmax')
+    ])
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    model.fit(train_data, train_data, validation_data=(val_data, val_data), epochs=200, verbose=0)
+    predictions = model.predict(val_data)
+    indices = np.argsort(predictions, axis=1)[:, -num_features:]
+    predicted_numbers = np.take_along_axis(val_data, indices, axis=1)
+    return predicted_numbers[0]
 
-# Apply weights based on recent draws
-for index, row in data.iloc[-set_rows:].iterrows():
-    update_weights(row)
+# Main function to execute both predictions and print results
+def main():
+    print_intro()
+    
+    # Load data for both models
+    rf_data = load_rf_data()
+    lstm_train_data, lstm_val_data, lstm_max_value = load_lstm_data()
+    
+    # Random Forest Prediction
+    rf_predictions, rf_special = random_forest_prediction(rf_data)
+    # print("Random Forest Predicted Numbers:", rf_predictions, "Special number:", rf_special)
+    st.write("Random Forest Predicted Numbers:", rf_predictions, "Special number:", rf_special)
+    
+    # LSTM Prediction
+    lstm_predictions = lstm_prediction(lstm_train_data, lstm_val_data, lstm_max_value)
+    #print("LSTM Predicted Numbers:", ', '.join(map(str, lstm_predictions)))
+    st.write("LSTM Predicted Numbers:", ', '.join(map(str, lstm_predictions)))
 
-probabilities = 1 / weights
-probabilities_s = 1 / weights_s
-
-# Normalize probabilities
-total_prob = probabilities.sum()
-total_prob_s = probabilities_s.sum()
-probabilities /= total_prob
-probabilities_s /= total_prob_s
-
-# Create feature set and target variable
-X = data[columns].iloc[:-1]  # All rows except the last one
-y = data[columns].iloc[1:]   # All rows shifted up by one (next draw)
-
-# Train a simple RandomForestClassifier (this is just an example, you might need a different approach)
-clf = RandomForestClassifier(n_estimators=100)
-clf.fit(X, y)
-
-# Predict the next draw
-next_draw_probabilities = []
-for i in range(5):
-    next_draw_probabilities.append(np.argmax(probabilities[1:]) + 1)  # Add 1 to index to account for 1-based numbering
-    probabilities[next_draw_probabilities[-1]] = 0  # Remove the selected number from probabilities
-
-next_draw_s = np.argmax(probabilities_s[1:]) + 1  # Add 1 to index to account for 1-based numbering
-
-#print("Predicted next draw numbers:", next_draw_probabilities, "Special number:", next_draw_s)
-st.write("Predicted next draw numbers:", next_draw_probabilities, "Special number:", next_draw_s)
+# Run main function if this script is run directly
+if __name__ == "__main__":
+    main()
